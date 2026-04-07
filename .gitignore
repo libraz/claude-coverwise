@@ -1,0 +1,12 @@
+node_modules/
+.DS_Store
+*.log
+
+# Yarn 4 (zero-install disabled — nodeLinker: node-modules)
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*

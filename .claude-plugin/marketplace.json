@@ -1,0 +1,20 @@
+{
+  "name": "claude-coverwise",
+  "description": "Combinatorial (pairwise / t-wise) test coverage tools for Claude Code.",
+  "owner": {
+    "name": "libraz",
+    "email": "libraz@libraz.net",
+    "url": "https://github.com/libraz"
+  },
+  "plugins": [
+    {
+      "name": "claude-coverwise",
+      "source": "./",
+      "description": "Pairwise / t-wise combinatorial coverage for AI-written tests, powered by the coverwise WASM engine.",
+      "version": "0.1.0",
+      "homepage": "https://github.com/libraz/claude-coverwise",
+      "license": "Apache-2.0",
+      "keywords": ["testing", "pairwise", "t-wise", "combinatorial", "coverage", "mcp"]
+    }
+  ]
+}
