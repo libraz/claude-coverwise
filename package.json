@@ -1,6 +1,6 @@
 {
   "name": "claude-coverwise",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "packageManager": "yarn@4.12.0",
@@ -31,7 +31,7 @@
     "format": "biome format --write mcp/"
   },
   "dependencies": {
-    "@libraz/coverwise": "^1.0.2",
+    "@libraz/coverwise": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {

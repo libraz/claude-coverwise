@@ -105,10 +105,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@libraz/coverwise@npm:^1.0.2":
-  version: 1.0.2
-  resolution: "@libraz/coverwise@npm:1.0.2"
-  checksum: 10c0/f7b8db4d0451f8d0a51a1cbfb4bd1ef03df2c79b095d55a4743c5837af14c4dab9f7bcd8c9bd9bdb424aa0ac066de3195377a41e6cf272d903d2a98e2c4815e7
+"@libraz/coverwise@npm:^1.1.0":
+  version: 1.1.0
+  resolution: "@libraz/coverwise@npm:1.1.0"
+  checksum: 10c0/132ab17958100b0e1ecddfdb1719f894778054c8e19a56dd50485492394843c4a03272387e3133d00c78290bc1e99eda57f95e24eb124642053c46d93a312cb3
   languageName: node
   linkType: hard
 
@@ -244,7 +244,7 @@ __metadata:
   resolution: "claude-coverwise@workspace:."
   dependencies:
     "@biomejs/biome": "npm:^2.3.10"
-    "@libraz/coverwise": "npm:^1.0.2"
+    "@libraz/coverwise": "npm:^1.1.0"
     "@modelcontextprotocol/sdk": "npm:^1.0.0"
   languageName: unknown
   linkType: soft

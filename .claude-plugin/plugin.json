@@ -1,6 +1,6 @@
 {
   "name": "claude-coverwise",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Pairwise / t-wise combinatorial coverage checker for AI-written tests. Wraps the coverwise WASM engine as an MCP server plus a skill that teaches the constraint DSL.",
   "author": {
     "name": "libraz",
@@ -26,7 +26,7 @@
   "mcpServers": {
     "coverwise": {
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/server.mjs"]
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp/launch.mjs"]
     }
   }
 }

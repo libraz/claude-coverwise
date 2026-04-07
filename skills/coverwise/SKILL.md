@@ -110,6 +110,22 @@ IF region = "us-east-1" THEN provider = aws
 - **Strength inflation.** Default to `strength: 2` (pairwise). Only bump to 3 when three-way interactions genuinely matter (security, money, critical state machines). Test count grows fast with strength.
 - **Silent constraint violations.** If `analyze_coverage` shows a tuple uncovered with `reason: "excluded by constraint"`, that's expected — it means the constraint made the tuple impossible. Only uncovered tuples with a non-constraint reason are real gaps.
 
+## Analyzing a constrained model
+
+When the parameter model has constraints, **pass them to `analyze_coverage` too** — not just to `generate`. Without constraints, the analyzer cannot know that some tuples are impossible and will report them as `never covered`, polluting your "what's missing" list.
+
+```json
+{
+  "parameters": [...],
+  "tests": [...],
+  "constraints": ["IF os = macOS THEN browser != IE"]
+}
+```
+
+With constraints supplied, impossible tuples are **removed from the coverage universe entirely** — they do not appear in `totalTuples`, `coveredTuples`, or `uncovered`. This matches the generator's semantics, so analyzing a suite that `generate` produced for the same model+constraints yields `coverageRatio === 1.0`.
+
+Rule of thumb: use the same `constraints` array in `analyze_coverage` / `generate` / `extend_tests` for the same model.
+
 ## Reading `analyze_coverage` output
 
 ```json

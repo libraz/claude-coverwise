@@ -21,7 +21,7 @@ try {
   initError = err;
 }
 
-const server = new Server({ name: 'coverwise', version: '0.1.0' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'coverwise', version: '0.2.0' }, { capabilities: { tools: {} } });
 
 // --- Shared JSON Schema fragments ---------------------------------------
 
@@ -155,13 +155,14 @@ const tools = [
   {
     name: 'analyze_coverage',
     description:
-      'Analyze t-wise coverage of an EXISTING test suite (e.g. AI- or hand-written tests). Returns every uncovered tuple with a display string explaining what is missing. Use this as the primary "did I cover everything?" check.',
+      'Analyze t-wise coverage of an EXISTING test suite (e.g. AI- or hand-written tests). Returns every uncovered tuple with a display string explaining what is missing. Use this as the primary "did I cover everything?" check. Pass `constraints` when the model has them — constraint-impossible tuples are then removed from the coverage universe (not counted toward totalTuples / coveredTuples / uncovered), matching the generator\'s semantics.',
     inputSchema: {
       type: 'object',
       properties: {
         parameters: parametersSchema,
         tests: { ...testCasesSchema, description: 'Test cases to analyze.' },
         strength: { type: 'number', default: 2 },
+        constraints: constraintsSchema,
       },
       required: ['parameters', 'tests'],
     },
@@ -241,7 +242,7 @@ server.setRequestHandler(CallToolRequestSchema, async (req) => {
         result = generate(args);
         break;
       case 'analyze_coverage':
-        result = analyzeCoverage(args.parameters, args.tests, args.strength);
+        result = analyzeCoverage(args.parameters, args.tests, args.strength, args.constraints);
         break;
       case 'extend_tests': {
         const { existing, ...rest } = args;
