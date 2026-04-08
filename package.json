@@ -1,6 +1,6 @@
 {
   "name": "claude-coverwise",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "packageManager": "yarn@4.12.0",
@@ -26,16 +26,19 @@
   ],
   "scripts": {
     "start": "node mcp/server.mjs",
-    "lint": "biome check mcp/",
-    "lint:fix": "biome check --write mcp/",
-    "format": "biome format --write mcp/"
+    "lint": "biome check mcp/ scripts/ tests/",
+    "lint:fix": "biome check --write mcp/ scripts/ tests/",
+    "format": "biome format --write mcp/ scripts/ tests/",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@libraz/coverwise": "^1.1.0",
     "@modelcontextprotocol/sdk": "^1.0.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.10"
+    "@biomejs/biome": "^2.3.10",
+    "vitest": "^4.0.16"
   },
   "engines": {
     "node": ">=22.0.0"

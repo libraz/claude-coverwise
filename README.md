@@ -1,5 +1,6 @@
 # claude-coverwise
 
+[![CI](https://img.shields.io/github/actions/workflow/status/libraz/claude-coverwise/ci.yml?branch=main&label=CI)](https://github.com/libraz/claude-coverwise/actions)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%E2%89%A522-brightgreen?logo=node.js)](https://nodejs.org/)
 [![Yarn](https://img.shields.io/badge/yarn-4-2C8EBB?logo=yarn)](https://yarnpkg.com/)

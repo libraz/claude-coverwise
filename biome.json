@@ -46,6 +46,6 @@
     }
   },
   "files": {
-    "includes": ["mcp/**/*.mjs", "mcp/**/*.js"]
+    "includes": ["mcp/**/*.mjs", "mcp/**/*.js", "scripts/**/*.mjs", "tests/**/*.mjs"]
   }
 }

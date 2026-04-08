@@ -21,7 +21,7 @@ try {
   initError = err;
 }
 
-const server = new Server({ name: 'coverwise', version: '0.2.0' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'coverwise', version: '0.2.1' }, { capabilities: { tools: {} } });
 
 // --- Shared JSON Schema fragments ---------------------------------------
 
