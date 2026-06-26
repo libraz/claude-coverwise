@@ -141,7 +141,40 @@ Claude は `generate` ツールを次の入力で呼び出します:
 
 ## Claude Code 以外での利用
 
-MCP サーバーは素の stdio サーバーで、任意の MCP クライアント(Cursor、Cline、Claude Desktop、…)から利用できます。プロジェクトルートで `yarn install` した後、以下のように `mcp/server.mjs` を指定してください:
+MCP サーバーは素の stdio サーバーで、任意の MCP クライアント(Codex CLI、Cursor、Cline、Claude Desktop、…)から利用できます。Claude Code 内では上記のプラグインマーケットプレイスを使い、それ以外ではインストールヘルパーが各クライアントの設定への登録を代行します。
+
+### インストールヘルパー(推奨)
+
+対話式ヘルパーを実行すると、選択した設定ファイル(Claude Code ユーザー `~/.claude.json`、プロジェクト単位の `.mcp.json`、Codex CLI `~/.codex/config.toml`)に `mcpServers.coverwise` エントリを書き込みます。他のサーバーやキーはそのまま保持されます:
+
+```bash
+npx -y github:libraz/claude-coverwise init
+```
+
+どのファイルをどう変更するか(`(new)` / `(merge)` / `(replace coverwise)`)を表示し、書き込み前に確認を求めます。削除する場合:
+
+```bash
+npx -y github:libraz/claude-coverwise uninstall
+```
+
+生成されるエントリは `npx -y github:libraz/claude-coverwise` でサーバーを起動するため、クローンやビルドは不要です(初回起動時に npm が取得します)。反映には MCP クライアントの再起動が必要です。
+
+### 手動設定
+
+自分で登録したい場合は、同梱のランチャーを指定します:
+
+```json
+{
+  "mcpServers": {
+    "coverwise": {
+      "command": "npx",
+      "args": ["-y", "github:libraz/claude-coverwise"]
+    }
+  }
+}
+```
+
+リポジトリをローカルにクローン済みなら、プロジェクトルートで実行時依存(`npm install --omit=dev` または `yarn install`)をインストールした上で `mcp/server.mjs` を直接指定することもできます:
 
 ```json
 {

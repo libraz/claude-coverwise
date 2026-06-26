@@ -140,7 +140,40 @@ All tools return structured JSON. Uncovered tuples come with human-readable `dis
 
 ## Using outside Claude Code
 
-The MCP server is a plain stdio server and works with any MCP client (Cursor, Cline, Claude Desktop, …). Point your client at `mcp/server.mjs`:
+The MCP server is a plain stdio server and works with any MCP client (Codex CLI, Cursor, Cline, Claude Desktop, …). Inside Claude Code, use the plugin marketplace above; everywhere else, the install helper wires the server into your client's config for you.
+
+### Install helper (recommended)
+
+Run the interactive helper — it writes an `mcpServers.coverwise` entry into the config files you select (Claude Code user `~/.claude.json`, a project-scoped `.mcp.json`, and/or Codex CLI `~/.codex/config.toml`), preserving every other server and key:
+
+```bash
+npx -y github:libraz/claude-coverwise init
+```
+
+It prints exactly which files it will touch (`(new)` / `(merge)` / `(replace coverwise)`) and asks for confirmation before writing. To remove the entry again:
+
+```bash
+npx -y github:libraz/claude-coverwise uninstall
+```
+
+The generated entry runs the server via `npx -y github:libraz/claude-coverwise`, so there is nothing to clone or build — npm fetches it on first launch. Restart your MCP client afterwards to pick up the change.
+
+### Manual config
+
+Prefer to wire it up yourself? Point your client at the bundled launcher:
+
+```json
+{
+  "mcpServers": {
+    "coverwise": {
+      "command": "npx",
+      "args": ["-y", "github:libraz/claude-coverwise"]
+    }
+  }
+}
+```
+
+Or, if you've cloned the repo locally, run `mcp/server.mjs` directly after installing runtime dependencies (`npm install --omit=dev` or `yarn install`) in the project root:
 
 ```json
 {
@@ -152,8 +185,6 @@ The MCP server is a plain stdio server and works with any MCP client (Cursor, Cl
   }
 }
 ```
-
-after installing runtime dependencies (`npm install --omit=dev` or `yarn install`) in the project root.
 
 ## About coverwise
 

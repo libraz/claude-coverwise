@@ -27,7 +27,7 @@ Typical triggers:
 
 1. **Extract parameters** from the code / spec. Each parameter has a `name` and discrete `values`.
    - Enums → use values as-is
-   - Numeric ranges → bucket into boundary values (min, typical, max)
+   - Numeric ranges → bucket into boundary values (min, typical, max), or let the engine expand them automatically with `type` + `range` (see *Boundary value expansion* below)
    - Booleans → `[true, false]`
    - Nullable → add `null` as an explicit value if null behavior matters
 2. **Call `estimate_model`** first for any non-trivial model. If `estimatedTests` is surprisingly large or `totalTuples` explodes, the model is probably too wide — bucket numeric ranges or split into sub-models.
@@ -38,6 +38,39 @@ Typical triggers:
    - Filling gaps in existing tests: call `extend_tests` with the current tests as `existing`.
 5. **Verify**: the returned `coverage` should be `1.0`. If not, read `uncovered[]` — each entry has a `reason` (often "excluded by constraint", which is fine) and a `display` string.
 6. **Translate to the target test framework**. The returned `tests` array is `[{param: value, ...}, ...]`. Map each row to one test case in the user's framework (vitest, jest, pytest, Go table tests, etc.).
+
+## Boundary value expansion
+
+Instead of hand-bucketing a numeric range, declare it and let the engine inject the boundary values. Set `type` (`"integer"` or `"float"`) and `range: [min, max]` on the parameter; the value set is expanded to `min-1, min, min+1, max-1, max, max+1` (spaced by `step`, default `1.0`, for `"float"`). Any explicit `values` you list are kept alongside the generated boundaries.
+
+```json
+{
+  "name": "qty",
+  "type": "integer",
+  "range": [1, 100],
+  "values": []
+}
+```
+
+This produces `0, 1, 2, 99, 100, 101` — the off-by-one neighbors that catch most boundary bugs. Use it whenever the parameter is genuinely numeric; prefer it over passing a long literal list.
+
+## Equivalence classes
+
+When several values are interchangeable for the behavior under test (e.g. every 4xx status is "client error"), tag them with the same `class` name. The engine then reports `classCoverage` in the result, telling you whether each *class* — not just each raw value — was exercised.
+
+```json
+{
+  "name": "status",
+  "values": [
+    { "value": 400, "class": "client_error" },
+    { "value": 404, "class": "client_error" },
+    { "value": 500, "class": "server_error" },
+    { "value": 200, "class": "ok" }
+  ]
+}
+```
+
+The output gains a `classCoverage` block (`totalClassTuples`, `coveredClassTuples`, `classCoverageRatio`). Use it to argue "all error categories are covered" without exhaustively testing every status code.
 
 ## Constraint DSL — quick reference
 
@@ -105,7 +138,7 @@ IF region = "us-east-1" THEN provider = aws
 
 - **Too many constraints.** Each constraint subtracts from the reachable space. If coverage can't reach 1.0, the first thing to check is whether constraints are contradicting each other.
 - **Type mismatch.** `"1"` (string) and `1` (number) are different values. Pick one and be consistent per parameter.
-- **Raw continuous ranges.** Don't pass `values: [0, 1, 2, ..., 100]`. Bucket to boundary values.
+- **Raw continuous ranges.** Don't pass `values: [0, 1, 2, ..., 100]`. Bucket to boundary values, or declare `type` + `range` and let boundary expansion inject them.
 - **Forgetting `extend_tests`.** When the user has hand-written tests they want to keep, use `extend_tests`, not `generate` — otherwise you'll throw away their tests.
 - **Strength inflation.** Default to `strength: 2` (pairwise). Only bump to 3 when three-way interactions genuinely matter (security, money, critical state machines). Test count grows fast with strength.
 - **Silent constraint violations.** If `analyze_coverage` shows a tuple uncovered with `reason: "excluded by constraint"`, that's expected — it means the constraint made the tuple impossible. Only uncovered tuples with a non-constraint reason are real gaps.

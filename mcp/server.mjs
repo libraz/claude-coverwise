@@ -21,11 +21,11 @@ try {
   initError = err;
 }
 
-const server = new Server({ name: 'coverwise', version: '0.2.1' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'coverwise', version: '0.3.0' }, { capabilities: { tools: {} } });
 
 // --- Shared JSON Schema fragments ---------------------------------------
 
-/** A single parameter value: primitive or { value, invalid?, aliases? } object. */
+/** A single parameter value: primitive or { value, invalid?, aliases?, class? } object. */
 const parameterValueSchema = {
   oneOf: [
     { type: 'string' },
@@ -46,6 +46,11 @@ const parameterValueSchema = {
           items: { type: 'string' },
           description: 'Alternate names that match this value in constraints.',
         },
+        class: {
+          type: 'string',
+          description:
+            'Equivalence class name. Values sharing a class are interchangeable for the class-coverage metric, surfaced as result.classCoverage.',
+        },
       },
       required: ['value'],
       additionalProperties: false,
@@ -61,6 +66,23 @@ const parameterSchema = {
       type: 'array',
       description: 'Discrete values for this parameter.',
       items: parameterValueSchema,
+    },
+    type: {
+      type: 'string',
+      enum: ['integer', 'float'],
+      description:
+        'Boundary value expansion type. With `range`, expands the value set to min-1/min/min+1 and max-1/max/max+1 (spaced by `step` for "float").',
+    },
+    range: {
+      type: 'array',
+      items: { type: 'number' },
+      minItems: 2,
+      maxItems: 2,
+      description: 'Inclusive [min, max] range driving boundary value expansion. Requires `type`.',
+    },
+    step: {
+      type: 'number',
+      description: 'Step size for "float" boundary expansion (default 1.0).',
     },
   },
   required: ['name', 'values'],
@@ -205,8 +227,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools }));
 // --- Call dispatch ------------------------------------------------------
 
 function toErrorPayload(err) {
+  // CoverwiseError carries a structured `code` (and optional `detail`); preserve
+  // its enumerable fields. `message` lives on Error as a non-enumerable property,
+  // so JSON.stringify would drop it unless we copy it onto the payload explicitly.
   if (err && typeof err === 'object' && 'code' in err) {
-    return err;
+    return { ...err, message: err.message ? String(err.message) : String(err) };
   }
   return {
     code: 'INVALID_INPUT',

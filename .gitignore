@@ -2,6 +2,12 @@ node_modules/
 .DS_Store
 *.log
 
+# Local-only Claude / agent config and scratch dirs
+.claude/
+CLAUDE.md
+AGENT.md
+/backup/
+
 # Yarn 4 (zero-install disabled — nodeLinker: node-modules)
 .yarn/*
 !.yarn/patches

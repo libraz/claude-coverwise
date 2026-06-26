@@ -13,7 +13,8 @@ Steps:
 2. Build a parameter model:
    - Enums and unions → list every variant
    - Booleans → `[true, false]`
-   - Numeric ranges → bucket to boundary values (min / typical / max); do NOT enumerate raw ranges
+   - Numeric ranges → bucket to boundary values (min / typical / max); do NOT enumerate raw ranges. For genuinely numeric inputs, prefer declaring `type` + `range` so the engine auto-injects boundary neighbours (see the `coverwise` skill).
+   - Interchangeable values (e.g. every 4xx is a client error) → tag with a shared `class` to get class-coverage reporting
    - Nullable inputs → add an explicit null/undefined value only if null behavior matters
 3. Derive constraints from the code (invariants, guards, mutually exclusive flags). Use the DSL documented in the `coverwise` skill. Prefer fewer, sharper constraints.
 4. Call `coverwise.estimate_model` first for sanity. If `estimatedTests` looks unreasonable, adjust the model before generating.

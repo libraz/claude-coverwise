@@ -173,6 +173,48 @@ describe('claude-coverwise MCP server', () => {
     }
   });
 
+  it('generate expands boundary values from type + range', async () => {
+    const result = await client.callTool({
+      name: 'generate',
+      arguments: {
+        parameters: [
+          { name: 'qty', type: 'integer', range: [1, 100], values: [] },
+          { name: 'flag', values: ['on', 'off'] },
+        ],
+      },
+    });
+    const out = parseResult(result);
+    const qtys = new Set(out.tests.map((t) => String(t.qty)));
+    // integer boundary expansion of [1, 100] → 0,1,2,99,100,101
+    for (const expected of ['0', '1', '2', '99', '100', '101']) {
+      expect(qtys.has(expected)).toBe(true);
+    }
+  });
+
+  it('generate reports class coverage when values carry equivalence classes', async () => {
+    const result = await client.callTool({
+      name: 'generate',
+      arguments: {
+        parameters: [
+          {
+            name: 'status',
+            values: [
+              { value: 400, class: 'client_error' },
+              { value: 404, class: 'client_error' },
+              { value: 500, class: 'server_error' },
+              { value: 200, class: 'ok' },
+            ],
+          },
+          { name: 'method', values: ['GET', 'POST'] },
+        ],
+      },
+    });
+    const out = parseResult(result);
+    expect(out.classCoverage).toBeDefined();
+    expect(out.classCoverage.classCoverageRatio).toBe(1);
+    expect(out.classCoverage.coveredClassTuples).toBe(out.classCoverage.totalClassTuples);
+  });
+
   it('extend_tests preserves existing tests and reaches full coverage', async () => {
     const existing = [
       { a: '1', b: 'x' },
@@ -199,10 +241,22 @@ describe('claude-coverwise MCP server', () => {
     }
   });
 
-  it('surfaces warnings from the underlying engine', async () => {
-    // A syntactically malformed constraint is treated as a warning, not a hard
-    // error, by coverwise. The MCP server should faithfully forward the
-    // warnings array so callers can see what went wrong.
+  it('forwards the warnings array on a successful generation', async () => {
+    // GenerateResult always carries a warnings array (empty on the happy path).
+    // The MCP server must forward it verbatim so callers can inspect it.
+    const result = await client.callTool({
+      name: 'generate',
+      arguments: {
+        parameters: [{ name: 'a', values: ['1', '2'] }],
+      },
+    });
+    const out = parseResult(result);
+    expect(Array.isArray(out.warnings)).toBe(true);
+  });
+
+  it('surfaces a structured CONSTRAINT_ERROR for malformed constraint syntax', async () => {
+    // A syntactically malformed constraint is a hard error in coverwise. The
+    // MCP server should faithfully forward the structured error payload.
     const result = await client.callTool({
       name: 'generate',
       arguments: {
@@ -210,9 +264,29 @@ describe('claude-coverwise MCP server', () => {
         constraints: ['NOT A VALID CONSTRAINT @@@'],
       },
     });
+    expect(result.isError).toBe(true);
     const out = parseResult(result);
-    expect(Array.isArray(out.warnings)).toBe(true);
-    expect(out.warnings.length).toBeGreaterThan(0);
+    expect(out.code).toBe('CONSTRAINT_ERROR');
+    expect(out.message).toBeTruthy();
+  });
+});
+
+describe('CLI entry point', () => {
+  it('boots the MCP server when invoked with no arguments', async () => {
+    const cliPath = resolve(here, '..', 'mcp', 'cli.mjs');
+    const transport = new StdioClientTransport({
+      command: process.execPath,
+      args: [cliPath],
+    });
+    const client = new Client({ name: 'cli-test', version: '0.0.0' }, { capabilities: {} });
+    await client.connect(transport);
+    try {
+      const { tools } = await client.listTools();
+      const names = tools.map((t) => t.name).sort();
+      expect(names).toEqual(['analyze_coverage', 'estimate_model', 'extend_tests', 'generate']);
+    } finally {
+      await transport.close();
+    }
   });
 });
 
