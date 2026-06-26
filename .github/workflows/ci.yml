@@ -27,9 +27,9 @@ jobs:
         os: [ubuntu-latest, macos-latest]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: volta-cli/action@v4
+      - uses: volta-cli/action@v5
 
       - name: Install dependencies
         run: yarn install --immutable
@@ -61,7 +61,7 @@ jobs:
     name: Validate plugin and marketplace manifests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Validate plugin.json shape (top-level fields)
         run: |
           node -e "

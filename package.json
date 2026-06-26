@@ -7,9 +7,7 @@
   "description": "Claude Code plugin: pairwise / t-wise combinatorial coverage for AI-written tests, backed by the coverwise WASM engine",
   "license": "Apache-2.0",
   "author": "libraz <libraz@libraz.net>",
-  "bin": {
-    "claude-coverwise": "./mcp/cli.mjs"
-  },
+  "bin": "./mcp/cli.mjs",
   "homepage": "https://github.com/libraz/claude-coverwise",
   "repository": {
     "type": "git",
