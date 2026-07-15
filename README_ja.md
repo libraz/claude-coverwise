@@ -137,7 +137,7 @@ Claude は `generate` ツールを次の入力で呼び出します:
 | `extend_tests` | 既存を保持したまま、100% 到達のための最小テストを追加 |
 | `estimate_model` | 生成前にモデルを確認(tuple 数、想定テスト数) |
 
-すべてのツールは構造化 JSON を返します。未カバー tuple には人間可読な `display` 文字列と `reason`(実際の欠落か、制約による除外かを区別)が付きます。
+すべてのツールは構造化 JSON を返します。未カバー tuple には人間可読な `display` 文字列が付き、制約上到達不能な tuple はカバレッジ母集団から除外されます。カバレッジレポートには未カバー総数 `uncoveredCount`、診断リストが 1,000 件で打ち切られた場合の `omittedUncovered`、カバレッジ計算から除外された既存行を示す `invalidTests` が含まれます。
 
 ## Claude Code 以外での利用
 
@@ -189,7 +189,7 @@ npx -y github:libraz/claude-coverwise uninstall
 
 ## coverwise について
 
-裏側のエンジンは [**coverwise**](https://github.com/libraz/coverwise) — WASM ファーストの C++17 組合せテストエンジン(Pure TypeScript フォールバックあり)で、任意の t-wise 強度、完全な制約 DSL、ネガティブテスト、混合強度サブモデル、境界値、同値クラスをサポートします。本プラグインはその JS API を Claude Code に公開する薄い殻です。
+裏側のエンジンは [**coverwise**](https://github.com/libraz/coverwise) v1.3 — WASM ファーストの C++17 組合せテストエンジン(Pure TypeScript フォールバックあり)で、任意の t-wise 強度、完全な制約ソルバー、生成オプション検証、ネガティブテスト、混合強度サブモデル、境界値、同値クラスをサポートします。本プラグインはその JS API を Claude Code に公開する薄い殻です。
 
 ## ライセンス
 

@@ -19,7 +19,7 @@ Steps:
 3. Derive constraints from the code (invariants, guards, mutually exclusive flags). Use the DSL documented in the `coverwise` skill. Prefer fewer, sharper constraints.
 4. Call `coverwise.estimate_model` first for sanity. If `estimatedTests` looks unreasonable, adjust the model before generating.
 5. Call `coverwise.generate` with the model. Use `strength: 2` (pairwise) unless the user explicitly asks for higher.
-6. Verify `coverage === 1.0`. If not, inspect `uncovered` — constraint-excluded tuples are fine, anything else is a real problem and must be reported.
+6. Verify `coverage === 1.0`. If not, report `uncoveredCount`, every returned `uncovered[].display`, and `omittedUncovered` when non-zero. Constraint-unreachable tuples are already removed from the coverage universe, so every returned tuple is a real problem.
 7. Translate each row of `result.tests` into a concrete test case in the user's chosen framework (vitest / jest / pytest / Go table test / etc.), matching the file's existing style.
 8. Write the tests to the appropriate test file, or print them if the user hasn't specified a destination.
 

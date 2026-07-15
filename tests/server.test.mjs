@@ -38,6 +38,28 @@ function parseResult(result) {
   return JSON.parse(block.text);
 }
 
+const discreteParameters = () => [
+  { name: 'a', values: ['1', '2'] },
+  { name: 'b', values: ['x', 'y'] },
+];
+
+const boundaryParameters = () => [
+  { name: 'qty', type: 'integer', range: [1, 100], values: [] },
+  { name: 'flag', values: ['on', 'off'] },
+];
+
+const classParameters = () => [
+  {
+    name: 'status',
+    values: [
+      { value: 200, class: 'ok' },
+      { value: 400, class: 'client_error' },
+      { value: 500, class: 'server_error' },
+    ],
+  },
+  { name: 'method', values: ['GET', 'POST'] },
+];
+
 describe('claude-coverwise MCP server', () => {
   let client;
   let transport;
@@ -59,6 +81,17 @@ describe('claude-coverwise MCP server', () => {
       expect(tool.inputSchema).toBeDefined();
       expect(tool.inputSchema.type).toBe('object');
     }
+
+    const generateTool = tools.find((tool) => tool.name === 'generate');
+    expect(generateTool.inputSchema.properties.strength).toMatchObject({
+      type: 'integer',
+      minimum: 1,
+    });
+    expect(generateTool.inputSchema.properties.seed).toMatchObject({
+      type: 'integer',
+      minimum: 0,
+      maximum: 4294967295,
+    });
   });
 
   it('estimate_model returns parameter statistics without running generation', async () => {
@@ -94,6 +127,8 @@ describe('claude-coverwise MCP server', () => {
     const out = parseResult(result);
     expect(out.coverage).toBe(1);
     expect(out.uncovered).toEqual([]);
+    expect(out.uncoveredCount).toBe(0);
+    expect(out.omittedUncovered).toBe(0);
     expect(out.tests.length).toBeGreaterThanOrEqual(9);
     for (const tc of out.tests) {
       expect(['win', 'mac', 'linux']).toContain(tc.os);
@@ -138,6 +173,9 @@ describe('claude-coverwise MCP server', () => {
     expect(report.totalTuples).toBe(4);
     expect(report.coveredTuples).toBe(2);
     expect(report.uncovered).toHaveLength(2);
+    expect(report.uncoveredCount).toBe(2);
+    expect(report.omittedUncovered).toBe(0);
+    expect(report.invalidTests).toEqual([]);
     expect(report.coverageRatio).toBeCloseTo(0.5, 5);
   });
 
@@ -171,6 +209,69 @@ describe('claude-coverwise MCP server', () => {
       expect(flat).not.toMatch(/locale=ja.*dir=rtl|dir=rtl.*locale=ja/);
       expect(flat).not.toMatch(/locale=ar.*dir=ltr|dir=ltr.*locale=ar/);
     }
+  });
+
+  it('constraint solver excludes partial tuples that cannot extend to a valid complete test', async () => {
+    const parameters = [
+      { name: 'a', values: ['0', '1'] },
+      { name: 'b', values: ['0', '1'] },
+      { name: 'c', values: ['0', '1'] },
+    ];
+    const constraints = ['IF a = 0 THEN c = 0', 'IF b = 0 THEN c = 1'];
+    const generated = await client.callTool({
+      name: 'generate',
+      arguments: { parameters, constraints, seed: 11 },
+    });
+    const suite = parseResult(generated);
+    expect(suite.coverage).toBe(1);
+
+    const analyzed = await client.callTool({
+      name: 'analyze_coverage',
+      arguments: { parameters, constraints, tests: suite.tests },
+    });
+    const report = parseResult(analyzed);
+    expect(report.coverageRatio).toBe(1);
+    expect(report.totalTuples).toBe(9);
+    expect(report.uncoveredCount).toBe(0);
+    expect(report.uncovered).toEqual([]);
+  });
+
+  it('analyze_coverage reports rows excluded from coverage accounting', async () => {
+    const result = await client.callTool({
+      name: 'analyze_coverage',
+      arguments: {
+        parameters: [
+          { name: 'a', values: ['1', '2'] },
+          { name: 'b', values: ['x', 'y'] },
+        ],
+        tests: [{ a: '1' }],
+      },
+    });
+    const report = parseResult(result);
+    expect(report.coverageRatio).toBe(0);
+    expect(report.invalidTests).toHaveLength(1);
+    expect(report.invalidTests[0].testIndex).toBe(0);
+    expect(report.invalidTests[0].reason).toMatch(/parameter b/i);
+    expect(report.uncoveredCount).toBe(4);
+  });
+
+  it('analyze_coverage reports the full gap count when diagnostics are truncated', async () => {
+    const values = Array.from({ length: 40 }, (_, index) => String(index));
+    const result = await client.callTool({
+      name: 'analyze_coverage',
+      arguments: {
+        parameters: [
+          { name: 'a', values },
+          { name: 'b', values },
+        ],
+        tests: [],
+      },
+    });
+    const report = parseResult(result);
+    expect(report.coverageRatio).toBe(0);
+    expect(report.uncoveredCount).toBe(1600);
+    expect(report.uncovered).toHaveLength(1000);
+    expect(report.omittedUncovered).toBe(600);
   });
 
   it('generate expands boundary values from type + range', async () => {
@@ -224,6 +325,7 @@ describe('claude-coverwise MCP server', () => {
       name: 'extend_tests',
       arguments: {
         existing,
+        mode: 'strict',
         parameters: [
           { name: 'a', values: ['1', '2'] },
           { name: 'b', values: ['x', 'y'] },
@@ -234,11 +336,7 @@ describe('claude-coverwise MCP server', () => {
     const out = parseResult(result);
     expect(out.coverage).toBe(1);
     expect(out.tests.length).toBeGreaterThanOrEqual(existing.length);
-    // Every existing test must still be present somewhere in the result.
-    for (const e of existing) {
-      const found = out.tests.some((t) => t.a === e.a && t.b === e.b);
-      expect(found).toBe(true);
-    }
+    expect(out.tests.slice(0, existing.length)).toEqual(existing);
   });
 
   it('forwards the warnings array on a successful generation', async () => {
@@ -247,7 +345,10 @@ describe('claude-coverwise MCP server', () => {
     const result = await client.callTool({
       name: 'generate',
       arguments: {
-        parameters: [{ name: 'a', values: ['1', '2'] }],
+        parameters: [
+          { name: 'a', values: ['1', '2'] },
+          { name: 'b', values: ['x', 'y'] },
+        ],
       },
     });
     const out = parseResult(result);
@@ -260,7 +361,10 @@ describe('claude-coverwise MCP server', () => {
     const result = await client.callTool({
       name: 'generate',
       arguments: {
-        parameters: [{ name: 'a', values: ['1'] }],
+        parameters: [
+          { name: 'a', values: ['1', '2'] },
+          { name: 'b', values: ['x', 'y'] },
+        ],
         constraints: ['NOT A VALID CONSTRAINT @@@'],
       },
     });
@@ -269,6 +373,224 @@ describe('claude-coverwise MCP server', () => {
     expect(out.code).toBe('CONSTRAINT_ERROR');
     expect(out.message).toBeTruthy();
   });
+
+  it('surfaces structured INVALID_INPUT errors for invalid generation options', async () => {
+    const result = await client.callTool({
+      name: 'generate',
+      arguments: {
+        parameters: [
+          { name: 'a', values: ['1', '2'] },
+          { name: 'b', values: ['x', 'y'] },
+        ],
+        weights: { a: { 1: 0 } },
+      },
+    });
+    expect(result.isError).toBe(true);
+    const out = parseResult(result);
+    expect(out.code).toBe('INVALID_INPUT');
+    expect(out.message).toMatch(/weight/i);
+  });
+
+  it.each([
+    {
+      scenario: 'class model + malformed constraint + seed + valid options',
+      arguments: {
+        parameters: classParameters(),
+        constraints: ['NOT A VALID CONSTRAINT @@@'],
+        seed: 17,
+        weights: { method: { GET: 2 } },
+      },
+      expectedError: 'CONSTRAINT_ERROR',
+    },
+    {
+      scenario: 'boundary model + malformed constraint + seed + invalid options',
+      arguments: {
+        parameters: boundaryParameters(),
+        constraints: ['NOT A VALID CONSTRAINT @@@'],
+        seed: 17,
+        weights: { flag: { on: 0 } },
+      },
+      expectedError: 'INVALID_INPUT',
+    },
+    {
+      scenario: 'class model + satisfiable constraint + no seed + invalid options',
+      arguments: {
+        parameters: classParameters(),
+        constraints: ['IF method = POST THEN status != 500'],
+        weights: { method: { GET: 0 } },
+      },
+      expectedError: 'INVALID_INPUT',
+    },
+    {
+      scenario: 'boundary model + no constraint or seed + valid options',
+      arguments: {
+        parameters: boundaryParameters(),
+        weights: { flag: { on: 2 } },
+        seeds: [{ qty: 1, flag: 'on' }],
+        subModels: [{ parameters: ['qty', 'flag'], strength: 2 }],
+        maxTests: 0,
+      },
+    },
+    {
+      scenario: 'boundary model + satisfiable constraint + seed + valid options',
+      arguments: {
+        parameters: boundaryParameters(),
+        constraints: ['IF flag = on THEN qty >= 0'],
+        seed: 23,
+        weights: { flag: { off: 2 } },
+      },
+    },
+    {
+      scenario: 'discrete model + satisfiable constraint + seed + valid options',
+      arguments: {
+        parameters: discreteParameters(),
+        constraints: ['IF a = 1 THEN b = x'],
+        seed: 29,
+        weights: { a: { 1: 2 } },
+        seeds: [{ a: '1', b: 'x' }],
+        subModels: [{ parameters: ['a', 'b'], strength: 2 }],
+        maxTests: 0,
+      },
+    },
+  ])('covers generate interaction: $scenario', async ({ arguments: args, expectedError }) => {
+    const result = await client.callTool({ name: 'generate', arguments: args });
+    const out = parseResult(result);
+    if (expectedError) {
+      expect(result.isError).toBe(true);
+      expect(out.code).toBe(expectedError);
+      return;
+    }
+    expect(result.isError).toBeFalsy();
+    expect(out.coverage).toBe(1);
+    expect(out.uncoveredCount).toBe(0);
+  });
+
+  it('analyze_coverage reports a complete unconstrained suite', async () => {
+    const result = await client.callTool({
+      name: 'analyze_coverage',
+      arguments: {
+        parameters: discreteParameters(),
+        tests: [
+          { a: '1', b: 'x' },
+          { a: '1', b: 'y' },
+          { a: '2', b: 'x' },
+          { a: '2', b: 'y' },
+        ],
+      },
+    });
+    const report = parseResult(result);
+    expect(report.coverageRatio).toBe(1);
+    expect(report.uncoveredCount).toBe(0);
+    expect(report.invalidTests).toEqual([]);
+  });
+
+  it('analyze_coverage reports invalid rows with constraints present', async () => {
+    const result = await client.callTool({
+      name: 'analyze_coverage',
+      arguments: {
+        parameters: discreteParameters(),
+        tests: [{ a: '1' }],
+        constraints: ['IF a = 1 THEN b = x'],
+      },
+    });
+    const report = parseResult(result);
+    expect(report.coverageRatio).toBe(0);
+    expect(report.invalidTests).toHaveLength(1);
+    expect(report.invalidTests[0].testIndex).toBe(0);
+  });
+
+  it('analyze_coverage truncates constrained incomplete-suite diagnostics', async () => {
+    const values = Array.from({ length: 40 }, (_, index) => String(index));
+    const result = await client.callTool({
+      name: 'analyze_coverage',
+      arguments: {
+        parameters: [
+          { name: 'a', values },
+          { name: 'b', values },
+        ],
+        tests: [],
+        constraints: [`a IN {${values.join(', ')}}`],
+      },
+    });
+    const report = parseResult(result);
+    expect(report.coverageRatio).toBe(0);
+    expect(report.uncoveredCount).toBe(1600);
+    expect(report.uncovered).toHaveLength(1000);
+    expect(report.omittedUncovered).toBe(600);
+  });
+
+  it.each([
+    { scenario: 'constraints + seed + default mode', constraints: true, seed: 31 },
+    { scenario: 'no constraints or seed + default mode' },
+    { scenario: 'constraints + no seed + strict mode', constraints: true, mode: 'strict' },
+  ])('covers extend_tests interaction: $scenario', async ({ constraints, seed, mode }) => {
+    const existing = [
+      { a: '1', b: 'x' },
+      { a: '2', b: 'y' },
+    ];
+    const args = { existing, parameters: discreteParameters() };
+    if (constraints) {
+      args.constraints = ['IF a = 1 THEN b = x'];
+    }
+    if (seed !== undefined) {
+      args.seed = seed;
+    }
+    if (mode !== undefined) {
+      args.mode = mode;
+    }
+
+    const result = await client.callTool({ name: 'extend_tests', arguments: args });
+    const out = parseResult(result);
+    expect(result.isError).toBeFalsy();
+    expect(out.coverage).toBe(1);
+    expect(out.tests.slice(0, existing.length)).toEqual(existing);
+  });
+
+  it.each([
+    {
+      scenario: 'constraints + custom strength + no sub-model',
+      constraints: true,
+      strength: 3,
+    },
+    {
+      scenario: 'constraints + default strength + sub-model',
+      constraints: true,
+      subModels: [{ parameters: ['a', 'b', 'c'], strength: 3 }],
+    },
+    { scenario: 'no constraints + custom strength + no sub-model', strength: 3 },
+    {
+      scenario: 'no constraints + custom strength + sub-model',
+      strength: 1,
+      subModels: [{ parameters: ['a', 'b'], strength: 2 }],
+    },
+  ])(
+    'covers estimate_model interaction: $scenario',
+    async ({ constraints, strength, subModels }) => {
+      const args = {
+        parameters: [
+          { name: 'a', values: ['1', '2'] },
+          { name: 'b', values: ['x', 'y'] },
+          { name: 'c', values: ['on', 'off'] },
+        ],
+      };
+      if (constraints) {
+        args.constraints = ['IF a = 1 THEN b = x'];
+      }
+      if (strength !== undefined) {
+        args.strength = strength;
+      }
+      if (subModels !== undefined) {
+        args.subModels = subModels;
+      }
+
+      const result = await client.callTool({ name: 'estimate_model', arguments: args });
+      const stats = parseResult(result);
+      expect(result.isError).toBeFalsy();
+      expect(stats.parameterCount).toBe(3);
+      expect(stats.totalTuples).toBeGreaterThan(0);
+      expect(stats.subModelCount).toBe(subModels ? 1 : 0);
+    },
+  );
 });
 
 describe('CLI entry point', () => {

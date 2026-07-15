@@ -16,8 +16,8 @@ Steps:
 5. Call `coverwise.extend_tests` with:
    - `existing`: the extracted test cases
    - `parameters` / `constraints` / `strength`: the model
-6. The returned `tests` array contains the full extended suite (existing + new). Do **not** assume the existing tests appear at the head of the array — the ordering is not guaranteed. Identify the new rows by diffing `result.tests` against `existing` (compare as sets of parameter-to-value maps).
+6. In strict mode, the returned `tests` array contains the existing rows verbatim at the head in their original order, followed by generated rows. Verify that prefix and identify new rows with `result.tests.slice(existing.length)`.
 7. Append only the new tests to the file, matching the file's existing style and framework.
-8. Verify `coverage === 1.0`. Any remaining `uncovered` with a non-constraint reason must be reported to the user.
+8. Verify `coverage === 1.0`. If coverage is incomplete, report `uncoveredCount`, every returned `uncovered[].display`, and `omittedUncovered` when non-zero. Constraint-unreachable tuples are already removed from the coverage universe.
 
 Do NOT rewrite, reorder, or delete existing tests — only append. If the user's existing tests have drifted from the parameter model (e.g. they use a value that no longer exists), stop and ask rather than silently "fixing" them.

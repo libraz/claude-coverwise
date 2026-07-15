@@ -8,7 +8,7 @@
  */
 import { runInit, runUninstall } from './init.mjs';
 
-const PACKAGE_VERSION = '0.3.0';
+const PACKAGE_VERSION = '0.4.0';
 
 const HELP = `claude-coverwise ${PACKAGE_VERSION}
 Pairwise / t-wise combinatorial coverage MCP server.

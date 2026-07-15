@@ -17,8 +17,10 @@ Steps:
    - `strength`: 2 unless the user specified otherwise
 4. Report:
    - Current coverage ratio
-   - Every uncovered tuple using its `display` string
-   - Whether each gap is a real miss or excluded by a constraint (use the `reason` field)
+   - The authoritative `uncoveredCount`, plus every returned tuple using its `display` string
+   - `omittedUncovered` when non-zero (the diagnostic list is capped at 1,000 entries)
+   - Every `invalidTests` entry separately; these rows were excluded from coverage accounting
+   - Constraints used for the analysis. Constraint-unreachable tuples are removed from the coverage universe, so every tuple returned in `uncovered` is a real miss
 5. If there are real gaps, offer to run `/cover-extend` to generate the minimum additional tests.
 
 Follow the guidance in the `coverwise` skill for the constraint DSL and common pitfalls.

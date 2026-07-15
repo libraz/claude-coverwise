@@ -136,7 +136,7 @@ and writes ~9 tests covering every valid 2-way interaction instead of the 36-cas
 | `extend_tests` | Add the minimum extra tests to reach 100%, preserving existing ones |
 | `estimate_model` | Sanity-check a model (tuple count, estimated tests) before generating |
 
-All tools return structured JSON. Uncovered tuples come with human-readable `display` strings and a `reason` that distinguishes real gaps from constraint-excluded combinations.
+All tools return structured JSON. Uncovered tuples come with human-readable `display` strings; constraint-unreachable tuples are removed from the coverage universe. Coverage reports include the authoritative `uncoveredCount`, `omittedUncovered` when the 1,000-entry diagnostic list is truncated, and `invalidTests` for existing rows excluded from coverage accounting.
 
 ## Using outside Claude Code
 
@@ -188,7 +188,7 @@ Or, if you've cloned the repo locally, run `mcp/server.mjs` directly after insta
 
 ## About coverwise
 
-The engine underneath is [**coverwise**](https://github.com/libraz/coverwise) — a WASM-first C++17 combinatorial test engine with a pure TypeScript fallback, supporting arbitrary t-wise strength, a full constraint DSL, negative tests, mixed-strength sub-models, boundary values, and equivalence classes. This plugin is a thin shell that exposes its JS API to Claude Code.
+The engine underneath is [**coverwise**](https://github.com/libraz/coverwise) v1.3 — a WASM-first C++17 combinatorial test engine with a pure TypeScript fallback, supporting arbitrary t-wise strength, a full constraint solver, validated generation options, negative tests, mixed-strength sub-models, boundary values, and equivalence classes. This plugin is a thin shell that exposes its JS API to Claude Code.
 
 ## License
 

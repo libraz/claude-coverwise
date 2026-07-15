@@ -36,7 +36,7 @@ Typical triggers:
    - New test suite: call `generate`.
    - Reviewing existing tests: call `analyze_coverage`, inspect `uncovered[].display` strings.
    - Filling gaps in existing tests: call `extend_tests` with the current tests as `existing`.
-5. **Verify**: the returned `coverage` should be `1.0`. If not, read `uncovered[]` — each entry has a `reason` (often "excluded by constraint", which is fine) and a `display` string.
+5. **Verify**: generated/extended `coverage` or analyzed `coverageRatio` should be `1.0`. If not, compare `uncoveredCount` with `uncovered.length`, report each returned `display`, and mention `omittedUncovered` when diagnostics were truncated. Constraint-unreachable tuples are removed from the coverage universe and do not appear in `uncovered`.
 6. **Translate to the target test framework**. The returned `tests` array is `[{param: value, ...}, ...]`. Map each row to one test case in the user's framework (vitest, jest, pytest, Go table tests, etc.).
 
 ## Boundary value expansion
@@ -141,7 +141,8 @@ IF region = "us-east-1" THEN provider = aws
 - **Raw continuous ranges.** Don't pass `values: [0, 1, 2, ..., 100]`. Bucket to boundary values, or declare `type` + `range` and let boundary expansion inject them.
 - **Forgetting `extend_tests`.** When the user has hand-written tests they want to keep, use `extend_tests`, not `generate` — otherwise you'll throw away their tests.
 - **Strength inflation.** Default to `strength: 2` (pairwise). Only bump to 3 when three-way interactions genuinely matter (security, money, critical state machines). Test count grows fast with strength.
-- **Silent constraint violations.** If `analyze_coverage` shows a tuple uncovered with `reason: "excluded by constraint"`, that's expected — it means the constraint made the tuple impossible. Only uncovered tuples with a non-constraint reason are real gaps.
+- **Treating constraint-unreachable tuples as gaps.** With the same constraints supplied to every operation, tuples that cannot extend to a valid complete test are removed from the coverage universe. They do not appear in `uncovered`; every returned tuple is a real coverage gap.
+- **Ignoring invalid existing rows.** `analyze_coverage` excludes malformed or out-of-model rows from coverage accounting and reports them in `invalidTests`. Surface these rows separately instead of counting them as coverage.
 
 ## Analyzing a constrained model
 
@@ -155,7 +156,7 @@ When the parameter model has constraints, **pass them to `analyze_coverage` too*
 }
 ```
 
-With constraints supplied, impossible tuples are **removed from the coverage universe entirely** — they do not appear in `totalTuples`, `coveredTuples`, or `uncovered`. This matches the generator's semantics, so analyzing a suite that `generate` produced for the same model+constraints yields `coverageRatio === 1.0`.
+With constraints supplied, impossible tuples are **removed from the coverage universe entirely** — including partial tuples that do not directly violate a constraint but cannot be extended to any valid complete test. They do not appear in `totalTuples`, `coveredTuples`, or `uncovered`. This matches the generator's semantics, so analyzing a suite that `generate` produced for the same model+constraints yields `coverageRatio === 1.0`.
 
 Rule of thumb: use the same `constraints` array in `analyze_coverage` / `generate` / `extend_tests` for the same model.
 
@@ -166,25 +167,35 @@ Rule of thumb: use the same `constraints` array in `analyze_coverage` / `generat
   "totalTuples": 36,
   "coveredTuples": 32,
   "coverageRatio": 0.888,
+  "uncoveredCount": 4,
+  "omittedUncovered": 3,
+  "invalidTests": [],
   "uncovered": [
     {
       "tuple": ["os=linux", "browser=safari"],
       "params": ["os", "browser"],
-      "reason": "not covered by any test",
-      "display": "os=linux × browser=safari"
+      "reason": "never covered",
+      "display": "os=linux, browser=safari"
     }
   ]
 }
 ```
 
-Report back to the user in the `display` form — it's the shortest faithful description of what's missing.
+Report back to the user in the `display` form — it's the shortest faithful description of what's missing. `uncovered` is capped at 1,000 diagnostic entries, so always report `uncoveredCount` as the authoritative total and `omittedUncovered` when it is non-zero. Report `invalidTests` separately; those test rows were excluded from coverage accounting.
+
+## v1.3 input validation and extension guarantees
+
+- `strength` must be a positive integer and cannot exceed the usable model strength. Pairwise generation therefore needs at least two parameters.
+- `seed` and `maxTests` must be unsigned 32-bit integers. Weights must be finite and positive, seed rows must contain exactly the model parameters, and sub-models must name valid parameters with a valid strength.
+- All public surfaces return structured `INVALID_INPUT` errors for invalid options. Repeat the offending field and message instead of retrying with silently altered input.
+- `extend_tests` uses strict mode: existing rows are preserved verbatim at the start of the returned `tests` array and generated rows are appended. The new rows are `tests.slice(existing.length)`.
 
 ## Error codes
 
 The MCP tools return structured errors:
 
-- `INVALID_INPUT` — malformed parameters, typo in a value, unknown constraint syntax
-- `CONSTRAINT_ERROR` — constraints are contradictory; no valid test can exist. Ask the user to loosen constraints.
+- `INVALID_INPUT` — malformed parameters/options or a typo in a parameter value
+- `CONSTRAINT_ERROR` — malformed constraint syntax or contradictory constraints. Fix syntax errors verbatim; ask the user to loosen contradictory constraints.
 - `INSUFFICIENT_COVERAGE` — `maxTests` cap was too tight. Raise it or drop the cap.
 - `TUPLE_EXPLOSION` — strength × parameter count is too large. Lower strength or split into sub-models.
 

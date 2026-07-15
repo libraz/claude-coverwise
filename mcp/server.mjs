@@ -21,7 +21,7 @@ try {
   initError = err;
 }
 
-const server = new Server({ name: 'coverwise', version: '0.3.0' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'coverwise', version: '0.4.0' }, { capabilities: { tools: {} } });
 
 // --- Shared JSON Schema fragments ---------------------------------------
 
@@ -43,7 +43,7 @@ const parameterValueSchema = {
         },
         aliases: {
           type: 'array',
-          items: { type: 'string' },
+          items: { type: 'string', minLength: 1 },
           description: 'Alternate names that match this value in constraints.',
         },
         class: {
@@ -61,7 +61,7 @@ const parameterValueSchema = {
 const parameterSchema = {
   type: 'object',
   properties: {
-    name: { type: 'string', description: 'Parameter name (e.g. "os").' },
+    name: { type: 'string', minLength: 1, description: 'Parameter name (e.g. "os").' },
     values: {
       type: 'array',
       description: 'Discrete values for this parameter.',
@@ -82,6 +82,7 @@ const parameterSchema = {
     },
     step: {
       type: 'number',
+      exclusiveMinimum: 0,
       description: 'Step size for "float" boundary expansion (default 1.0).',
     },
   },
@@ -120,7 +121,7 @@ const weightsSchema = {
     'Per-parameter value weights to bias generation. Shape: { paramName: { value: weight, ... } }.',
   additionalProperties: {
     type: 'object',
-    additionalProperties: { type: 'number' },
+    additionalProperties: { type: 'number', exclusiveMinimum: 0 },
   },
 };
 
@@ -131,8 +132,13 @@ const subModelsSchema = {
   items: {
     type: 'object',
     properties: {
-      parameters: { type: 'array', items: { type: 'string' } },
-      strength: { type: 'number' },
+      parameters: {
+        type: 'array',
+        minItems: 1,
+        uniqueItems: true,
+        items: { type: 'string', minLength: 1 },
+      },
+      strength: { type: 'integer', minimum: 1 },
     },
     required: ['parameters', 'strength'],
     additionalProperties: false,
@@ -144,11 +150,17 @@ const generateInputFields = {
   parameters: parametersSchema,
   constraints: constraintsSchema,
   strength: {
-    type: 'number',
+    type: 'integer',
+    minimum: 1,
     description: 'Interaction strength t. 2 = pairwise (default), 3 = triple-wise, etc.',
     default: 2,
   },
-  seed: { type: 'number', description: 'RNG seed for deterministic output.' },
+  seed: {
+    type: 'integer',
+    minimum: 0,
+    maximum: 4294967295,
+    description: 'Unsigned 32-bit RNG seed for deterministic output.',
+  },
   weights: weightsSchema,
   seeds: {
     ...testCasesSchema,
@@ -156,7 +168,9 @@ const generateInputFields = {
   },
   subModels: subModelsSchema,
   maxTests: {
-    type: 'number',
+    type: 'integer',
+    minimum: 0,
+    maximum: 4294967295,
     description: 'Optional cap on test count. Coverage may be < 1.0 if set too low.',
   },
 };
@@ -167,7 +181,7 @@ const tools = [
   {
     name: 'generate',
     description:
-      'Generate a minimal t-wise (default pairwise) test suite from parameters and optional constraints. Returns tests, coverage ratio, and any uncovered tuples with human-readable reasons.',
+      'Generate a compact t-wise (default pairwise) test suite from parameters and optional constraints. Returns tests, coverage ratio, and uncovered tuple diagnostics. Constraint-unreachable tuples are excluded after checking whether each partial tuple can extend to a valid complete test.',
     inputSchema: {
       type: 'object',
       properties: generateInputFields,
@@ -177,13 +191,13 @@ const tools = [
   {
     name: 'analyze_coverage',
     description:
-      'Analyze t-wise coverage of an EXISTING test suite (e.g. AI- or hand-written tests). Returns every uncovered tuple with a display string explaining what is missing. Use this as the primary "did I cover everything?" check. Pass `constraints` when the model has them — constraint-impossible tuples are then removed from the coverage universe (not counted toward totalTuples / coveredTuples / uncovered), matching the generator\'s semantics.',
+      'Analyze t-wise coverage of an EXISTING test suite (e.g. AI- or hand-written tests). Returns uncovered tuple diagnostics (up to 1000 entries), the complete uncoveredCount, omittedUncovered, and invalidTests. Use this as the primary "did I cover everything?" check. Pass `constraints` when the model has them — tuples that cannot extend to a valid complete test are removed from the coverage universe, matching the generator\'s semantics.',
     inputSchema: {
       type: 'object',
       properties: {
         parameters: parametersSchema,
         tests: { ...testCasesSchema, description: 'Test cases to analyze.' },
-        strength: { type: 'number', default: 2 },
+        strength: { type: 'integer', minimum: 1, default: 2 },
         constraints: constraintsSchema,
       },
       required: ['parameters', 'tests'],
@@ -192,13 +206,19 @@ const tools = [
   {
     name: 'extend_tests',
     description:
-      'Extend an existing test suite with the minimum additional tests needed to reach full t-wise coverage. Existing tests are kept verbatim; only new tests are appended. The returned tests array is not guaranteed to preserve the original ordering — diff it against `existing` to identify the newly added rows.',
+      'Extend an existing test suite with additional tests needed to reach full t-wise coverage. In strict mode, existing rows are kept verbatim at the start of the returned tests array in their original order; generated rows are appended.',
     inputSchema: {
       type: 'object',
       properties: {
         existing: {
           ...testCasesSchema,
           description: 'Test cases already written — will be preserved as-is.',
+        },
+        mode: {
+          type: 'string',
+          enum: ['strict'],
+          default: 'strict',
+          description: 'Preserve every existing test verbatim and append only new rows.',
         },
         ...generateInputFields,
       },
@@ -214,7 +234,7 @@ const tools = [
       properties: {
         parameters: parametersSchema,
         constraints: constraintsSchema,
-        strength: { type: 'number', default: 2 },
+        strength: { type: 'integer', minimum: 1, default: 2 },
         subModels: subModelsSchema,
       },
       required: ['parameters'],
